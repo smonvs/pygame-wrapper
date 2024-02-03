@@ -1,6 +1,8 @@
 from abc import ABC
 from exceptions import *
+from util import *
 import pygame
+
 
 class Component(ABC):
     
@@ -15,7 +17,7 @@ class Component(ABC):
     def start(self):
         pass
     
-    def update(self, delta_time, input):
+    def update(self, scene_manager, frame_metrics, input):
         pass
     
     def draw(self, buffer):
@@ -24,15 +26,15 @@ class Component(ABC):
 class Transform(Component):
     
     def initialize(self):
-        self.__position = (0, 0)
-        self.__prev_position = (0, 0)
-        self.__scale = (1, 1)
+        self._position = (0, 0)
+        self._prev_position = (0, 0)
+        self._scale = (1, 1)
     
     def start(self):
-        self.__prev_position = self.__position
+        self._prev_position = self._position
     
-    def update(self, delta_time, input):
-        self.__prev_position = self.__position
+    def update(self, scene_manager, delta_time, input):
+        self._prev_position = self._position
         
         if self._entity.get_parent() is not None:
             parent = self._entity.get_parent()
@@ -44,126 +46,124 @@ class Transform(Component):
                 self.move_to_direction(delta_pos[0], delta_pos[1])            
     
     def get_position(self):
-        return self.__position
+        return self._position
     
     def get_prev_position(self):
-        return self.__prev_position
+        return self._prev_position
     
     def move_to(self, new_position):
-        self.__position = new_position    
+        self._position = new_position    
     
     def move_to_direction(self, x, y):
-        self.__position = (self.__position[0] + x, self.__position[1] + y)
+        self._position = (self._position[0] + x, self._position[1] + y)
     
     def get_scale(self):
-        return self.__scale
+        return self._scale
     
     def scale(self, x, y):
-        self.__scale = (x, y)
+        self._scale = (x, y)
     
-class Sprite(Component):
+class SpriteRenderer(Component):
     
     def initialize(self):
-        self.__sprite = None
-        self.__size = ()
-        self.__layer = ""
-        self.__flip_x = False
-        self.__flip_y = False
+        self._sprite = None
+        self._size = ()
+        self._layer = ""
+        self._flip_x = False
+        self._flip_y = False
         
     def draw(self, buffer):
         scale = self._entity.transform.get_scale()
-        sprite = self.__sprite
+        sprite = self._sprite
 
         if self._entity.transform.get_scale() != (1, 1):
-            sprite = pygame.transform.scale(self.__sprite, (self.__size[0] * scale[0], self.__size[1] * scale[1]))
+            sprite = pygame.transform.scale(self._sprite.get_surface(), (self._size[0] * scale[0], self._size[1] * scale[1]))
 
-        if self.__flip_x or self.__flip_y:
-            sprite = pygame.transform.flip(sprite, self.__flip_x, self.__flip_y)
+        if self._flip_x or self._flip_y:
+            sprite = pygame.transform.flip(self._sprite.get_surface(), self._flip_x, self._flip_y)
 
-        buffer.add_to_layer(self.__layer, sprite, self._entity.transform.get_position())
+        buffer.add_to_layer(self._layer, sprite.get_surface(), self._entity.transform.get_position())
 
     def get_sprite(self):
-        return self.__sprite
+        return self._sprite
 
     def set_sprite(self, path):
-        self.__sprite = pygame.image.load(path)
-        self.__sprite = self.__sprite.convert_alpha()
-        self.__size = self.__sprite.get_rect().size
+        self._sprite = Image(path)
+        self._size = self._sprite.get_surface().get_rect().size
     
     def set_sprite_image(self, image):
-        self.__sprite = image
-        self.__sprite = self.__sprite.convert_alpha()
-        self.__size = self.__sprite.get_rect().size
+        self._sprite = image.copy()
+        self._size = self._sprite.get_surface().get_rect().size
     
     def get_layer(self):
-        return self.__layer
+        return self._layer
     
     def set_layer(self, layer):
-        self.__layer = layer
+        self._layer = layer
     
     def flip(self, bool_x, bool_y):
-        self.__flip_x = bool_x
-        self.__flip_y = bool_y
+        self._flip_x = bool_x
+        self._flip_y = bool_y
             
 class SpriteAnimator(Component):
     
     def initialize(self):
-        if not self._entity.has_component(Sprite):
-            self._entity.add_component(Sprite)
+        if not self._entity.has_component(SpriteRenderer):
+            self._entity.add_component(SpriteRenderer)
         
-        self.__animations = {}
-        self.__current_animation = None
-        self.__animate = False
-        self.__frame_time = 0
-        self.__progress = 0
-        self.__current_index = 0
-        self.__repeat = False
-        self.__sprite = self._entity.get_component(Sprite)
-        self.__default_sprite = self.__sprite.get_sprite()
+        self._animations = {}
+        self._current_animation = None
+        self._animate = False
+        self._frame_time = 0
+        self._progress = 0
+        self._current_index = 0
+        self._repeat = False
+        self._sprite = self._entity.get_component(SpriteRenderer)
+        self._default_sprite = self._sprite.get_sprite()
     
-    def update(self, frame_metrics, input):
-        if self.__animate:
-            self.__progress += frame_metrics.get_delta_time()
-            if self.__progress >= self.__frame_time:
-                self.__progress -= self.__frame_time
-                if self.__current_index == len(self.__current_animation.sprites) - 1:
-                    if self.__repeat:
-                        self.__current_index = 0
+    def update(self, scene_manager, frame_metrics, input):
+        if self._animate:
+            self._progress += frame_metrics.get_delta_time()
+            if self._progress >= self._frame_time:
+                self._progress -= self._frame_time
+                if self._current_index == len(self._current_animation.sprites) - 1:
+                    if self._repeat:
+                        self._current_index = 0
                     else:
                         self.stop_animation()
                 else:
-                    self.__current_index += 1
-            self.__sprite.set_sprite_image(self.__current_animation.sprites[self.__current_index])
+                    self._current_index += 1
+            self._sprite.set_sprite_image(self._current_animation.sprites[self._current_index])
     
     def add_animation(self, name, fps, paths):
-        if name in self.__animations:
+        if name in self._animations:
             raise DuplicateKeyException()
 
         sprites = []
         for path in paths:
-            sprites.append(pygame.image.load(path))
-        self.__animations[name] = Animation(sprites, fps)
+            sprites.append(Image(path))
+        self._animations[name] = Animation(sprites, fps)
     
     def switch_animation(self, name, repeat):
-        if name not in self.__animations:
+        if name not in self._animations:
             raise KeyNotFoundException()
         
-        self.__current_animation = self.__animations[name]
-        self.__animate = True
-        self.__frame_time = 1 / self.__current_animation.fps
-        self.__progress = 0
-        self.__current_index = 0
-        self.__repeat = repeat
-        self.__sprite.set_sprite_image(self.__current_animation.sprites[0])
+        self._current_animation = self._animations[name]
+        self._animate = True
+        self._frame_time = 1 / self._current_animation.fps
+        self._progress = 0
+        self._current_index = 0
+        self._repeat = repeat
+        self._sprite.set_sprite_image(self._current_animation.sprites[0])
     
     def stop_animation(self):
-        self.__current_animation = None
-        self.__animate = False
-        self.__frame_time = 0
-        self.__progress = 0
-        self.__current_index = 0
-        self.__repeat = False
-        self.__sprite.set_sprite_image(self.__default_sprite)
+        self._current_animation = None
+        self._animate = False
+        self._frame_time = 0
+        self._progress = 0
+        self._current_index = 0
+        self._repeat = False
+        self._sprite.set_sprite_image(self._default_sprite)
     
 class Animation:
     
