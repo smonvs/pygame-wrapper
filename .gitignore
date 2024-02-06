@@ -1,5 +1,5 @@
 test.py
 components_custom.py
-res/
+tmp/
 assets/
 __pycache__/

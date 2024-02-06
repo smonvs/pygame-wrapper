@@ -1,8 +1,9 @@
 import pygame
+from pygame.sprite import Sprite
 
 class Color:
     WHITE = (255, 255, 255)
-    BLACK = (255, 255, 255)
+    BLACK = (0, 0, 0)
 
 class T_Color:
     RESET = '\033[0m'
@@ -14,21 +15,11 @@ class T_Color:
     CYAN = '\033[96m'
     WHITE = '\033[97m'
     
-class Image:
+class Path:
     
     def __init__(self, path):
-        self._path = path
-        self._surface = pygame.image.load(path).convert_alpha()
+        self.path = path
         
-    def get_path(self):
-        return self._path
-    
-    def get_surface(self):
-        return self._surface
-    
-    def copy(self):
-        return Image(self._path, self._surface.copy())
-    
 def log(msg):
     msg = msg.replace("(/)", T_Color.RESET)
     msg = msg.replace("(C)", T_Color.CYAN)
